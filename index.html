@@ -1,0 +1,1528 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <base target="_top">
+  <!-- デザイン用ライブラリ -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+  <!-- PDF処理ライブラリ -->
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <!-- ZIP圧縮ライブラリ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- PDF描画（圧縮用） -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <style>
+    :root {
+      /* ブランドカラー（既存のバイオレット系を踏襲しつつ、彩度を抑えて信頼感を強調） */
+      --bg: oklch(98% 0.004 264);
+      --surface: #ffffff;
+      --surface-muted: oklch(97.3% 0.005 264);
+      --border: oklch(90.5% 0.008 264);
+      --border-soft: oklch(94% 0.006 264);
+      --text: oklch(27% 0.02 264);
+      --text-muted: oklch(52% 0.016 264);
+      --text-faint: oklch(66% 0.012 264);
+
+      --accent: oklch(48% 0.135 285);
+      --accent-hover: oklch(42% 0.14 285);
+      --accent-soft: oklch(94.5% 0.025 285);
+      --accent-soft-border: oklch(87% 0.045 285);
+
+      --danger: oklch(60% 0.19 25);
+      --danger-soft: oklch(95.5% 0.03 25);
+      --safe: oklch(58% 0.13 155);
+      --safe-soft: oklch(95% 0.035 155);
+      --safe-text: oklch(38% 0.11 155);
+
+      /* 既存コードとの互換用エイリアス */
+      --primary-color: var(--accent);
+      --bg-color: var(--bg);
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      padding-bottom: 40px;
+    }
+
+    /* ヘッダー */
+    .app-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 20px 32px; background: var(--surface);
+      border-bottom: 1px solid var(--border-soft); margin-bottom: 30px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon {
+      width: 38px; height: 38px; border-radius: 10px; background: var(--accent);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #fff; font-size: 1.1rem;
+    }
+    .brand-text { display: flex; flex-direction: column; line-height: 1.25; }
+    .brand-title { font-weight: 900; font-size: 1.18rem; letter-spacing: 0.01em; color: var(--text); }
+    .brand-sub { font-size: 0.75rem; color: var(--text-faint); }
+
+    .badge-secure {
+      display: flex; align-items: center; gap: 7px;
+      background-color: var(--safe-soft); color: var(--safe-text);
+      border: 1px solid oklch(90% 0.05 155);
+      font-size: 0.82rem; font-weight: 700;
+      padding: 7px 14px 7px 12px; border-radius: 20px;
+    }
+    .badge-secure i { color: var(--safe); font-size: 0.95rem; }
+
+    /* メインカード */
+    .main-card {
+      background: var(--surface); border-radius: 20px;
+      border: 1px solid var(--border-soft);
+      box-shadow: 0 8px 28px rgba(0,0,0,0.05);
+      padding: 40px 44px; max-width: 900px; margin: 0 auto;
+    }
+
+    /* タブ */
+    .nav-pills {
+      background: var(--surface-muted); padding: 5px; border-radius: 14px;
+      display: inline-flex; margin-bottom: 30px; gap: 4px; border: 1px solid var(--border-soft);
+    }
+    .nav-pills .nav-link {
+      color: var(--text-muted); font-weight: 600; border-radius: 10px;
+      padding: 11px 22px; transition: all 0.2s; display: flex; align-items: center; gap: 8px;
+    }
+    .nav-pills .nav-link.active {
+      background-color: var(--surface); color: var(--accent);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06); font-weight: 700;
+    }
+    .nav-pills .nav-link:hover:not(.active) { background-color: var(--border-soft); color: var(--text); }
+
+    /* ステップ見出し */
+    .step-badge {
+      background-color: var(--accent-soft); color: var(--accent);
+      padding: 4px 10px; border-radius: 6px;
+      font-size: 0.68rem; font-weight: 800; letter-spacing: 0.06em;
+      margin-right: 10px; display: inline-block; text-transform: uppercase;
+    }
+    .section-title { font-weight: 700; font-size: 1rem; margin-bottom: 20px; display: flex; align-items: center; }
+
+    .drop-zone {
+      border: 1.5px dashed var(--border); border-radius: 14px;
+      padding: 50px 20px; text-align: center; cursor: pointer;
+      transition: all 0.2s; background-color: var(--surface-muted);
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent); background-color: var(--accent-soft);
+    }
+    .drop-zone i { font-size: 2.6rem; color: var(--text-faint); margin-bottom: 15px; display: block; }
+    .drop-zone p { color: var(--text-muted); margin-bottom: 4px; }
+    .drop-zone .sub-text { color: var(--text-faint) !important; }
+
+    /* ファイルリスト */
+    #file-list { margin-top: 20px; }
+    .file-item {
+      background: var(--surface-muted); border-radius: 14px; padding: 14px 18px;
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px; border: 1px solid var(--border-soft); transition: background 0.2s;
+    }
+    .file-item:hover { background: var(--border-soft); }
+
+    .file-info { display: flex; align-items: center; overflow: hidden; gap: 14px; }
+    .file-icon-box {
+      width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+    }
+    .file-icon-box.pdf { background: var(--danger-soft); color: var(--danger); }
+    .file-icon-box.img { background: var(--accent-soft); color: var(--accent); }
+    .file-text { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+    .file-name {
+      font-weight: 700; font-size: 0.92rem; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; max-width: 400px; color: var(--text);
+    }
+    .file-size { font-size: 0.78rem; color: var(--text-faint); }
+
+    .file-actions { display: flex; gap: 5px; align-items: center; flex-shrink: 0; }
+
+    /* 並び替えボタン */
+    .sort-btn {
+      width: 32px; height: 32px; padding: 0;
+      border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
+      color: var(--text-muted); display: flex; align-items: center; justify-content: center;
+    }
+    .sort-btn:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-soft-border); }
+    .sort-btn:disabled { color: var(--border); border-color: var(--border-soft); cursor: default; background: var(--surface-muted); }
+
+    /* 削除ボタン */
+    .remove-btn {
+      width: 32px; height: 32px; padding: 0;
+      border: none; background: transparent;
+      color: var(--text-faint); font-size: 1.2rem;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; margin-left: 5px; border-radius: 8px;
+    }
+    .remove-btn:hover { color: var(--danger); background: var(--danger-soft); }
+
+    /* 設定エリア */
+    .settings-area { margin-top: 34px; padding-top: 24px; border-top: 1px solid var(--border-soft); }
+    .custom-switch-card {
+      background-color: var(--surface-muted); border: 1px solid var(--border-soft);
+      border-radius: 12px; padding: 16px 18px;
+      display: flex; align-items: flex-start; gap: 15px; margin-bottom: 20px;
+    }
+    .custom-switch-card .fw-bold { color: var(--text); }
+    .custom-switch-card .text-muted { color: var(--text-muted) !important; }
+    .form-switch .form-check-input {
+      width: 3em; height: 1.5em; margin-left: 0; cursor: pointer;
+      accent-color: var(--accent);
+    }
+
+    .form-label.fw-bold { color: var(--text); font-size: 0.88rem; }
+    .form-control, .form-control:focus {
+      border-radius: 10px; border: 1.5px solid var(--border); padding: 13px 16px;
+      font-size: 0.95rem; color: var(--text);
+    }
+    .form-control:focus {
+      border-color: var(--accent-soft-border); background-color: var(--accent-soft);
+      box-shadow: 0 0 0 3px oklch(48% 0.135 285 / 0.12);
+    }
+
+    .action-btn {
+      background-color: var(--accent); color: white;
+      border: none; padding: 15px 46px; border-radius: 11px;
+      font-weight: 700; font-size: 1rem; transition: all 0.2s;
+      box-shadow: 0 4px 14px oklch(48% 0.135 285 / 0.28);
+    }
+    .action-btn:hover { background-color: var(--accent-hover); color: white; box-shadow: 0 4px 16px oklch(48% 0.135 285 / 0.35); }
+    .action-btn:disabled { box-shadow: none; }
+
+    .privacy-note {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      margin-top: 14px; font-size: 0.78rem; color: var(--text-faint);
+    }
+    .privacy-note i { color: var(--text-faint); font-size: 0.85rem; }
+
+    #loading-overlay {
+      position: fixed; top:0; left:0; width:100%; height:100%;
+      background: rgba(255,255,255,0.85); display: none;
+      justify-content: center; align-items: center; z-index: 9999;
+      flex-direction: column;
+    }
+    #loading-overlay .spinner-border { color: var(--accent) !important; }
+    #loading-message { color: var(--accent); }
+
+    .compress-estimate {
+      background: var(--accent-soft); border: 1px solid var(--accent-soft-border); border-radius: 12px;
+      padding: 16px 18px; margin-top: 8px;
+    }
+    .compress-estimate .estimate-row {
+      display: flex; justify-content: space-between; gap: 12px;
+      font-size: 0.95rem; margin-bottom: 6px;
+    }
+    .compress-estimate .estimate-row:last-child { margin-bottom: 0; }
+    .compress-estimate .estimate-label { color: var(--text-muted); }
+    .compress-estimate .estimate-value { font-weight: 700; color: var(--text); }
+    .compress-estimate .estimate-saving { color: var(--safe); }
+    .compress-estimate .estimate-grow { color: #e17055; }
+    .compress-estimate .estimate-pending { color: var(--accent); font-weight: 500; }
+    .range-header {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 6px;
+    }
+    .range-header .form-label { color: var(--text); }
+    .range-value {
+      font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums;
+    }
+    .form-range { cursor: pointer; accent-color: var(--accent); }
+    .glyph-warning {
+      display: flex; align-items: flex-start; gap: 9px;
+      background: oklch(96.5% 0.04 75); border: 1px solid oklch(88% 0.08 75);
+      color: oklch(42% 0.11 60); border-radius: 12px;
+      padding: 13px 16px; margin-top: 12px;
+      font-size: 0.85rem; line-height: 1.6; font-weight: 500;
+    }
+    .glyph-warning i { color: oklch(62% 0.15 60); font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+
+    .compress-note {
+      font-size: 0.85rem; color: var(--text-faint); margin-top: 12px; line-height: 1.5;
+    }
+
+    .alert-info {
+      background-color: var(--accent-soft); border: 1px solid var(--accent-soft-border);
+      color: var(--text); border-radius: 12px;
+    }
+    .alert-info i { color: var(--accent); }
+    .text-danger { color: var(--danger) !important; }
+
+  </style>
+</head>
+<body>
+
+  <!-- ヘッダー -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon"><i class="bi bi-file-earmark-text-fill"></i></div>
+      <div class="brand-text">
+        <span class="brand-title">PDF Tools</span>
+        <span class="brand-sub">書類の分割・結合・整理・圧縮</span>
+      </div>
+    </div>
+    <div class="badge-secure"><i class="bi bi-shield-lock-fill"></i> ブラウザ内で処理・外部送信なし</div>
+  </header>
+
+  <div class="container">
+
+    <!-- タブ切り替え -->
+    <div class="d-flex justify-content-center">
+      <ul class="nav nav-pills" role="tablist">
+        <li class="nav-item">
+          <button class="nav-link active" id="tab-split" onclick="setMode('split')">
+            <i class="bi bi-scissors"></i> 分割
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" id="tab-merge" onclick="setMode('merge')">
+            <i class="bi bi-files"></i> 結合
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" id="tab-delete" onclick="setMode('delete')">
+            <i class="bi bi-trash"></i> 整理 (削除)
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" id="tab-compress" onclick="setMode('compress')">
+            <i class="bi bi-file-zip"></i> 圧縮
+          </button>
+        </li>
+      </ul>
+    </div>
+
+    <!-- メインカード -->
+    <div class="main-card">
+
+      <!-- ステップ1: アップロード -->
+      <h5 class="section-title"><span class="step-badge">Step 1</span> ファイルをアップロード</h5>
+
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <i class="bi bi-file-earmark-arrow-up"></i>
+        <p>ここにファイルをドロップ</p>
+        <p class="sub-text" style="font-size:0.85rem;">またはクリックして選択</p>
+        <input type="file" id="file-input" hidden accept="application/pdf, image/jpeg, image/jpg" multiple>
+      </div>
+
+      <div id="file-list"></div>
+
+      <!-- ステップ2: 設定 -->
+      <div id="settings-area" class="settings-area" style="display:none;">
+        <h5 class="section-title"><span class="step-badge">Step 2</span> 設定 &amp; 実行</h5>
+
+        <!-- 分割用の設定 -->
+        <div id="config-split" class="config-section">
+          <div class="custom-switch-card">
+            <div class="form-check form-switch m-0">
+              <input class="form-check-input" type="checkbox" id="split-all-check" onchange="toggleSplitInput()">
+            </div>
+            <div>
+              <label class="form-check-label fw-bold d-block" for="split-all-check">全ページを個別に分割する</label>
+              <small class="text-muted">チェックを入れると、全てのページをバラバラにしてZIPでダウンロードします。</small>
+            </div>
+          </div>
+
+          <div class="mb-3" id="split-range-container">
+            <label class="form-label fw-bold">抽出したいページ範囲</label>
+            <input type="text" class="form-control" id="split-range" placeholder="例: 1-3, 5 (1〜3ページと5ページを抽出)">
+          </div>
+        </div>
+
+        <!-- 結合用の設定 -->
+        <div id="config-merge" class="config-section" style="display:none;">
+          <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> PDFとJPG画像（自動変換）を結合できます。上から順に連結されます。
+          </div>
+        </div>
+
+        <!-- 削除用の設定 -->
+        <div id="config-delete" class="config-section" style="display:none;">
+          <div class="mb-3">
+            <label class="form-label fw-bold text-danger">削除したいページ番号</label>
+            <input type="text" class="form-control" id="delete-range" placeholder="例: 2, 4 (2ページ目と4ページ目を削除)">
+          </div>
+        </div>
+
+        <!-- 圧縮用の設定 -->
+        <div id="config-compress" class="config-section" style="display:none;">
+          <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            PDFは1ページずつ写真（JPEG画像）に変換してから圧縮し、再度PDFにまとめます。そのため画質はJPEG画像としての設定になります。
+            <strong>変換後は文字が絵の一部になるため、コピーや検索はできなくなります。</strong>
+          </div>
+
+          <div class="mb-4">
+            <div class="range-header">
+              <label class="form-label fw-bold mb-0" for="compress-quality">画質</label>
+              <span class="range-value" id="compress-quality-label">70%</span>
+            </div>
+            <input type="range" class="form-range" id="compress-quality" min="40" max="95" step="5" value="70"
+              oninput="onCompressSettingChange()">
+            <div class="d-flex justify-content-between small text-muted">
+              <span>粗い</span>
+              <span>きれい</span>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <div class="range-header">
+              <label class="form-label fw-bold mb-0" for="compress-scale">解像度</label>
+              <span class="range-value" id="compress-scale-label">100%</span>
+            </div>
+            <input type="range" class="form-range" id="compress-scale" min="50" max="150" step="10" value="100"
+              oninput="onCompressSettingChange()">
+            <div class="d-flex justify-content-between small text-muted">
+              <span>低い</span>
+              <span>高い</span>
+            </div>
+          </div>
+
+          <div class="compress-estimate" id="compress-estimate-box">
+            <div class="estimate-row">
+              <span class="estimate-label">元のサイズ</span>
+              <span class="estimate-value" id="compress-original-size">—</span>
+            </div>
+            <div class="estimate-row">
+              <span class="estimate-label">推定サイズ</span>
+              <span class="estimate-value" id="compress-estimated-size">
+                <span class="estimate-pending">ファイルを選択すると計算します</span>
+              </span>
+            </div>
+            <div class="estimate-row">
+              <span class="estimate-label">見込み</span>
+              <span class="estimate-value" id="compress-saving">—</span>
+            </div>
+          </div>
+
+          <!-- 文字が画像に写っていない可能性を検知したときの警告 -->
+          <div id="compress-glyph-warning" class="glyph-warning" style="display:none;">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <span id="compress-glyph-warning-text"></span>
+          </div>
+
+          <p class="compress-note">
+            <i class="bi bi-info-circle"></i>
+            文字が潰れて読めなくならないよう、「画質」「解像度」をどちらの設定にしても一定以上のきれいさは保たれるようにしています。テキスト中心の軽いPDFでは、画像化によってかえってサイズが増える場合があります。推定サイズはまず粗い目安を表示し、続けて数ページのサンプルで精度を上げます。計算中でもダウンロードできます。
+          </p>
+        </div>
+
+        <div class="text-center mt-4">
+          <button id="process-btn" class="action-btn" onclick="executeProcess()">
+            処理してダウンロード <i class="bi bi-download ms-2"></i>
+          </button>
+          <div class="privacy-note">
+            <i class="bi bi-shield-lock"></i>
+            処理はこの端末内で完結し、ファイルはどこにも送信されません
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ローディング -->
+  <div id="loading-overlay">
+    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+    <div class="mt-3 fw-bold text-primary" id="loading-message">処理中...</div>
+  </div>
+
+  <script>
+    // pdf.js のバージョンは worker / cmaps / standard_fonts で必ず一致させる
+    const PDFJS_VERSION = '3.11.174';
+    // cdnjsは cmaps ディレクトリを配信していないため、データ系のみjsDelivrから取得する
+    // （jsDelivrはBootstrapで既に使用しているCDNなので、新しい接続先は増えない）
+    const PDFJS_DATA_BASE = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}`;
+    const PDFJS_CMAP_URL = `${PDFJS_DATA_BASE}/cmaps/`;                    // 末尾スラッシュ必須
+    const PDFJS_STANDARD_FONT_URL = `${PDFJS_DATA_BASE}/standard_fonts/`;  // 末尾スラッシュ必須
+
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
+    }
+
+    // pdf.jsでPDFを開く唯一の入口。
+    // cMapUrl / cMapPacked が無いと、フォント未埋め込み ＋ /Encoding /90ms-RKSJ-H のような
+    // 日本語PDF（MS明朝など）で文字が1文字も描画されず、画像化すると文字が消えたPDFになる。
+    // useSystemFonts / disableFontFace は既定値のままにする
+    // （disableFontFace: true にすると未埋め込みフォントの字形を得られず再発する）。
+    function openPdfJsDocument(arrayBuffer, extraParams) {
+      if (typeof pdfjsLib === 'undefined') {
+        throw new Error('PDF.js の読み込みに失敗しています（ネットワークを確認してください）');
+      }
+      return pdfjsLib.getDocument(Object.assign({
+        // pdf.jsは渡したバッファをworkerへ移譲して無効化するため、必ずコピーを渡す
+        data: arrayBuffer.slice(0),
+        cMapUrl: PDFJS_CMAP_URL,
+        cMapPacked: true,
+        standardFontDataUrl: PDFJS_STANDARD_FONT_URL
+      }, extraParams || {})).promise;
+    }
+
+    const { PDFDocument } = PDFLib;
+    let currentMode = 'split';
+    let selectedFiles = [];
+    let compressEstimateTimer = null;
+    let compressEstimateToken = 0;
+    // 推定用: 本番スケールに対する描画倍率（低解像度で高速化）
+    const COMPRESS_ESTIMATE_SCALE_RATIO = 0.55;
+    const COMPRESS_ESTIMATE_MAX_SAMPLES = 3;
+
+    // 「解像度」スライダーが小さい文字を潰さないようにするための下限DPI設定。
+    // PDF.jsのscale=1.0は72dpi相当だが、それでは細かい文字を含む書類が
+    // 圧縮後に判読できなくなることがあるため、スライダーのどの位置でも
+    // 最低限このDPIを下回らないようマッピングする（PDFページの描画にのみ適用。
+    // JPG画像の圧縮は元の解像度を基準にするため対象外）。
+    const PDF_COMPRESS_DPI_MIN = 100;  // 「低い」側の下限
+    const PDF_COMPRESS_DPI_MAX = 220;  // 「高い」側の上限
+    const PDF_BASE_DPI = 72;           // PDF.jsのscale=1.0に相当するDPI
+
+    function mapResolutionSliderToPdfRenderScale(uiScaleFraction) {
+      const t = Math.min(1, Math.max(0, (uiScaleFraction - 0.5) / (1.5 - 0.5)));
+      const dpi = PDF_COMPRESS_DPI_MIN + t * (PDF_COMPRESS_DPI_MAX - PDF_COMPRESS_DPI_MIN);
+      return dpi / PDF_BASE_DPI;
+    }
+
+    // ============================
+    // UI操作関連
+    // ============================
+
+    function setMode(mode) {
+      selectedFiles = [];
+      updateUI();
+      document.getElementById('file-input').value = '';
+
+      currentMode = mode;
+
+      document.querySelectorAll('.nav-link').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(`tab-${mode}`).classList.add('active');
+
+      document.querySelectorAll('.config-section').forEach(el => el.style.display = 'none');
+      document.getElementById(`config-${mode}`).style.display = 'block';
+
+      if (mode === 'compress') {
+        syncCompressLabels();
+        resetCompressEstimateUI();
+      }
+      updateProcessButtonState();
+    }
+
+    function toggleSplitInput() {
+      const isChecked = document.getElementById('split-all-check').checked;
+      const rangeInput = document.getElementById('split-range');
+
+      if (isChecked) {
+        rangeInput.disabled = true;
+        rangeInput.placeholder = "全ページ分割モードが有効です";
+      } else {
+        rangeInput.disabled = false;
+        rangeInput.placeholder = "例: 1-3, 5 (1〜3ページと5ページを抽出)";
+      }
+    }
+
+    const fileInput = document.getElementById('file-input');
+    const dropZone = document.getElementById('drop-zone');
+
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault(); dropZone.classList.remove('dragover');
+      handleFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      handleFiles(e.target.files);
+      fileInput.value = '';
+    });
+
+        function handleFiles(files) {
+      if (!files || files.length === 0) return;
+
+      if (currentMode === 'compress') {
+        const t = files[0].type;
+        if (t !== 'application/pdf' && t !== 'image/jpeg' && t !== 'image/jpg') {
+          return alert("この機能ではPDFまたはJPG画像のみ選択可能です。");
+        }
+        selectedFiles = [files[0]];
+      } else if (currentMode !== 'merge') {
+        if (files[0].type !== 'application/pdf') {
+          return alert("この機能ではPDFファイルのみ選択可能です。");
+        }
+        selectedFiles = [files[0]];
+      } else {
+        for (let i = 0; i < files.length; i++) {
+          const t = files[i].type;
+          if (t === 'application/pdf' || t === 'image/jpeg' || t === 'image/jpg') {
+            selectedFiles.push(files[i]);
+          }
+        }
+      }
+      updateUI();
+    }
+
+    function updateUI() {
+      const listEl = document.getElementById('file-list');
+      const settingsEl = document.getElementById('settings-area');
+      listEl.innerHTML = '';
+
+      if (selectedFiles.length === 0) {
+        settingsEl.style.display = 'none';
+        if (currentMode === 'compress') resetCompressEstimateUI();
+        updateProcessButtonState();
+        return;
+      }
+      settingsEl.style.display = 'block';
+
+      selectedFiles.forEach((file, index) => {
+        const div = document.createElement('div');
+        div.className = 'file-item';
+
+        const isPdf = file.type === 'application/pdf';
+        const iconBoxClass = isPdf ? 'file-icon-box pdf' : 'file-icon-box img';
+        const iconClass = isPdf ? 'bi-file-earmark-pdf-fill' : 'bi-file-earmark-image-fill';
+
+        let sortButtons = '';
+        if (currentMode === 'merge') {
+          const isFirst = index === 0;
+          const isLast = index === selectedFiles.length - 1;
+          sortButtons = `
+            <button class="sort-btn" onclick="moveFile(${index}, -1)" ${isFirst ? 'disabled' : ''} title="上へ移動">
+              <i class="bi bi-arrow-up-short"></i>
+            </button>
+            <button class="sort-btn" onclick="moveFile(${index}, 1)" ${isLast ? 'disabled' : ''} title="下へ移動">
+              <i class="bi bi-arrow-down-short"></i>
+            </button>
+          `;
+        }
+
+        div.innerHTML = `
+          <div class="file-info">
+            <div class="${iconBoxClass}"><i class="bi ${iconClass}"></i></div>
+            <div class="file-text">
+              <span class="file-name" title="${file.name}">${file.name}</span>
+              <span class="file-size">${formatBytes(file.size)}</span>
+            </div>
+          </div>
+          <div class="file-actions">
+            ${sortButtons}
+            <button class="remove-btn" onclick="removeFile(${index})" title="リストから削除">
+              <i class="bi bi-x"></i>
+            </button>
+          </div>
+        `;
+        listEl.appendChild(div);
+      });
+
+      if (currentMode === 'compress') {
+        document.getElementById('compress-original-size').textContent = formatBytes(selectedFiles[0].size);
+        scheduleCompressEstimate();
+      }
+      updateProcessButtonState();
+    }
+
+    function moveFile(index, step) {
+      const newIndex = index + step;
+      if (newIndex < 0 || newIndex >= selectedFiles.length) return;
+
+      const temp = selectedFiles[index];
+      selectedFiles[index] = selectedFiles[newIndex];
+      selectedFiles[newIndex] = temp;
+
+      updateUI();
+    }
+
+    function removeFile(index) {
+      selectedFiles.splice(index, 1);
+      updateUI();
+    }
+
+    function showLoading(show, message) {
+      document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+      document.getElementById('loading-message').textContent = message || '処理中...';
+    }
+
+    function getBaseName(fileName) {
+      return fileName.replace(/\.[^/.]+$/, "");
+    }
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+
+    function syncCompressLabels() {
+      const quality = Number(document.getElementById('compress-quality').value);
+      const scalePct = Number(document.getElementById('compress-scale').value);
+      document.getElementById('compress-quality-label').textContent = quality + '%';
+      document.getElementById('compress-scale-label').textContent = scalePct + '%';
+    }
+
+    function onCompressSettingChange() {
+      syncCompressLabels();
+      if (currentMode === 'compress' && selectedFiles.length > 0) {
+        scheduleCompressEstimate();
+      }
+    }
+
+    function resetCompressEstimateUI() {
+      compressEstimateToken++;
+      clearTimeout(compressEstimateTimer);
+      hideGlyphWarning();
+      document.getElementById('compress-original-size').textContent = '—';
+      document.getElementById('compress-estimated-size').innerHTML =
+        '<span class="estimate-pending">ファイルを選択すると計算します</span>';
+      document.getElementById('compress-saving').textContent = '—';
+      updateProcessButtonState();
+    }
+
+    // 圧縮モードではファイルがあれば推定完了を待たずダウンロード可能（案X）
+    function updateProcessButtonState() {
+      const btn = document.getElementById('process-btn');
+      const disabled = currentMode === 'compress' && selectedFiles.length === 0;
+      btn.disabled = disabled;
+      btn.style.opacity = disabled ? '0.55' : '1';
+      btn.style.cursor = disabled ? 'not-allowed' : 'pointer';
+    }
+
+    function applyCompressEstimateDisplay(estimated, original, label) {
+      document.getElementById('compress-estimated-size').textContent =
+        formatBytes(estimated) + label;
+
+      const ratio = original > 0 ? ((original - estimated) / original) * 100 : 0;
+      const savingEl = document.getElementById('compress-saving');
+      if (ratio >= 1) {
+        savingEl.className = 'estimate-value estimate-saving';
+        savingEl.textContent = `約 ${ratio.toFixed(0)}% 削減`;
+      } else if (ratio <= -1) {
+        savingEl.className = 'estimate-value estimate-grow';
+        savingEl.textContent = `約 ${Math.abs(ratio).toFixed(0)}% 増加の見込み`;
+      } else {
+        savingEl.className = 'estimate-value';
+        savingEl.textContent = 'ほぼ同程度';
+      }
+    }
+
+    // 案Z: 描画なしの即時ざっくり推定
+    function roughCompressEstimateBytes(originalSize, settings) {
+      const area = settings.scale * settings.scale;
+      // 画質が高いほど残るバイトが増える（経験的な係数）
+      const qualityFactor = 0.18 + settings.quality * 0.72;
+      const estimated = Math.round(originalSize * area * qualityFactor * 0.9);
+      return Math.max(2048, estimated);
+    }
+
+    function pickCompressSamplePages(totalPages) {
+      if (totalPages <= COMPRESS_ESTIMATE_MAX_SAMPLES) {
+        return Array.from({ length: totalPages }, (_, i) => i + 1);
+      }
+      const mid = Math.max(2, Math.ceil(totalPages / 2));
+      return [...new Set([1, mid, totalPages])].sort((a, b) => a - b);
+    }
+
+    function scheduleCompressEstimate() {
+      syncCompressLabels();
+      hideGlyphWarning(); // 設定変更・ファイル変更のたびに再判定する
+      if (selectedFiles.length === 0) return;
+
+      const file = selectedFiles[0];
+      const settings = getCompressSettings();
+      const original = file.size;
+
+      // 即時: 粗い目安を先出し（案Z）— ダウンロードはブロックしない
+      const rough = roughCompressEstimateBytes(original, settings);
+      applyCompressEstimateDisplay(rough, original, '（粗い目安）');
+      updateProcessButtonState();
+
+      const token = ++compressEstimateToken;
+      clearTimeout(compressEstimateTimer);
+      // 短いデバウンス後にサンプル推定（案C）
+      compressEstimateTimer = setTimeout(() => {
+        runSampleCompressEstimate(token).catch((e) => {
+          if (token !== compressEstimateToken) return;
+          // 粗い目安は残し、補足だけ更新
+          const savingEl = document.getElementById('compress-saving');
+          const prev = savingEl.textContent;
+          savingEl.className = 'estimate-value';
+          savingEl.textContent = (prev && prev !== '—')
+            ? `${prev}（サンプル推定はスキップ）`
+            : 'サンプル推定はスキップ';
+          console.warn('compress sample estimate failed', e);
+        });
+      }, 200);
+    }
+
+    // 案C: 低解像度 × 少数ページサンプルで精度を上げる
+    async function runSampleCompressEstimate(token) {
+      if (currentMode !== 'compress' || selectedFiles.length === 0) return;
+
+      const file = selectedFiles[0];
+      const settings = getCompressSettings();
+      const original = file.size;
+
+      // JPG画像1枚の場合はページサンプリングではなく実際に1回変換して正確なサイズを出す
+      if (isImageFile(file)) {
+        document.getElementById('compress-estimated-size').innerHTML =
+          '<span class="estimate-pending">計算中...</span>';
+        const page = await rasterizeImageFileToJpeg(file, settings);
+        if (token !== compressEstimateToken) return;
+        applyCompressEstimateDisplay(page.bytes.byteLength, original, '');
+        return;
+      }
+
+      if (typeof pdfjsLib === 'undefined') {
+        throw new Error('PDF.js の読み込みに失敗しています（ネットワークを確認してください）');
+      }
+
+      document.getElementById('compress-estimated-size').innerHTML =
+        '<span class="estimate-pending">サンプル推定中...</span>';
+
+      const arrayBuffer = await file.arrayBuffer();
+      if (token !== compressEstimateToken) return;
+
+      const pdf = await openPdfJsDocument(arrayBuffer);
+      if (token !== compressEstimateToken) return;
+
+      const totalPages = pdf.numPages;
+      const samplePages = pickCompressSamplePages(totalPages);
+      const finalScale = settings.pdfRenderScale;
+      const estimateScale = Math.max(0.25, finalScale * COMPRESS_ESTIMATE_SCALE_RATIO);
+      const sampleSettings = { quality: settings.quality, pdfRenderScale: estimateScale };
+
+      const sampleSizes = [];
+      for (let i = 0; i < samplePages.length; i++) {
+        if (token !== compressEstimateToken || currentMode !== 'compress') return;
+        document.getElementById('compress-estimated-size').innerHTML =
+          `<span class="estimate-pending">サンプル推定中... ${i + 1}/${samplePages.length}</span>`;
+
+        // 最初のサンプルページだけ、文字がきちんと描かれているかも確認する
+        const page = await rasterizeSinglePageToJpeg(
+          pdf, samplePages[i], i === 0 ? Object.assign({ checkGlyphs: true }, sampleSettings) : sampleSettings);
+        sampleSizes.push(page.bytes.byteLength);
+
+        if (i === 0 && token === compressEstimateToken && page.glyphCheck) {
+          if (page.glyphCheck.suspicious) {
+            // 文字があるべき位置に何も描かれていない
+            showGlyphWarning(GLYPH_WARNING_MESSAGE);
+          } else if (page.glyphCheck.checked === false && !(await probeCmapAvailability())) {
+            // 文字情報を読めず、かつ描画用データも取得できない（オフライン等）
+            showGlyphWarning(CMAP_WARNING_MESSAGE);
+          }
+        }
+      }
+
+      if (token !== compressEstimateToken) return;
+      if (!sampleSizes.length) throw new Error('サンプルを処理できませんでした。');
+
+      const avgJpeg = sampleSizes.reduce((a, b) => a + b, 0) / sampleSizes.length;
+      // 低解像度サンプル → 本番スケールへ外挿（面積比に近い指数）
+      const scaleRatio = finalScale / estimateScale;
+      const extrapolatedPerPage = avgJpeg * Math.pow(scaleRatio, 1.85);
+      const estimated = Math.round(extrapolatedPerPage * totalPages + totalPages * 1200 + 2048);
+
+      applyCompressEstimateDisplay(estimated, original, '（サンプル推定）');
+    }
+
+    function getCompressSettings() {
+      const scale = Number(document.getElementById('compress-scale').value) / 100;
+      return {
+        quality: Number(document.getElementById('compress-quality').value) / 100,
+        scale, // UIの割合（JPG画像のリサイズ・表示ラベル用）
+        // PDFページのラスタライズ専用スケール。文字が潰れないよう下限DPIを保証する
+        pdfRenderScale: mapResolutionSliderToPdfRenderScale(scale)
+      };
+    }
+
+    // ============================
+    // 文字が画像に写っていないことの検知（安全網）
+    // ============================
+
+    let cmapProbeResult = null; // null=未確認 / true=取得できた / false=取得できない
+
+    // 日本語PDFの描画に必要なCMapデータが取得できるかを1度だけ確認する。
+    // オフラインや社内プロキシで遮断されていると文字が描画できないため、その予兆をつかむ。
+    async function probeCmapAvailability() {
+      if (cmapProbeResult !== null) return cmapProbeResult;
+      try {
+        const resp = await fetch(PDFJS_CMAP_URL + '90ms-RKSJ-H.bcmap', { cache: 'force-cache' });
+        cmapProbeResult = resp.ok;
+      } catch (e) {
+        cmapProbeResult = false;
+      }
+      return cmapProbeResult;
+    }
+
+    // 「文字があるべき場所にインクが乗っているか」を調べる。
+    // ページ全体の黒さで判定すると、罫線・塗りつぶし・印影が多い書類では
+    // 文字が消えていても見逃してしまうため、文字1つ1つの位置に絞って確認する。
+    async function detectMissingGlyphs(page, ctx, canvas, viewport) {
+      try {
+        const tc = await page.getTextContent();
+        const items = tc.items.filter(it =>
+          (it.str || '').trim().length >= 1 && it.width > 0 && it.height > 0);
+        if (items.length < 5) return { checked: false }; // 画像だけのページ等は対象外
+
+        const step = Math.max(1, Math.floor(items.length / 30)); // 最大30箇所を抽出して確認
+        let boxes = 0, inked = 0;
+        for (let k = 0; k < items.length; k += step) {
+          const it = items[k];
+          const p1 = viewport.convertToViewportPoint(it.transform[4], it.transform[5]);
+          const p2 = viewport.convertToViewportPoint(it.transform[4] + it.width, it.transform[5] + it.height);
+          const x0 = Math.max(0, Math.floor(Math.min(p1[0], p2[0])));
+          const y0 = Math.max(0, Math.floor(Math.min(p1[1], p2[1])));
+          const x1 = Math.min(canvas.width, Math.ceil(Math.max(p1[0], p2[0])));
+          const y1 = Math.min(canvas.height, Math.ceil(Math.max(p1[1], p2[1])));
+          const w = x1 - x0, h = y1 - y0;
+          if (w <= 1 || h <= 1) continue;
+
+          const d = ctx.getImageData(x0, y0, w, h).data;
+          let dark = 0;
+          for (let i = 0; i < d.length; i += 4) {
+            if (d[i] < 170 && d[i + 1] < 170 && d[i + 2] < 170) dark++;
+          }
+          boxes++;
+          if (dark / (w * h) > 0.02) inked++; // その位置に何か描かれている
+        }
+        if (boxes === 0) return { checked: false };
+        const inkedRatio = inked / boxes;
+        return { checked: true, boxes, inked, inkedRatio, suspicious: inkedRatio < 0.4 };
+      } catch (e) {
+        return { checked: false }; // 判定できないときは警告しない
+      }
+    }
+
+    function showGlyphWarning(message) {
+      const box = document.getElementById('compress-glyph-warning');
+      document.getElementById('compress-glyph-warning-text').textContent = message;
+      box.style.display = 'flex';
+    }
+
+    function hideGlyphWarning() {
+      document.getElementById('compress-glyph-warning').style.display = 'none';
+    }
+
+    const GLYPH_WARNING_MESSAGE =
+      'このPDFは文字情報を持っていますが、画像化したページに文字がほとんど描かれていません。'
+      + 'このまま圧縮すると文字が消えたPDFになる可能性があります。'
+      + 'ネットワーク接続（文字データの取得）と、この端末に日本語フォントがあるかをご確認ください。';
+
+    const CMAP_WARNING_MESSAGE =
+      '日本語の文字を描画するためのデータを取得できませんでした（ネットワークが遮断されている可能性があります）。'
+      + 'このまま圧縮すると、日本語の文字が消えたPDFになる場合があります。';
+
+    async function rasterizeSinglePageToJpeg(pdf, pageNumber, settings) {
+      const page = await pdf.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: settings.pdfRenderScale });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.floor(viewport.width));
+      canvas.height = Math.max(1, Math.floor(viewport.height));
+      const ctx = canvas.getContext('2d', { alpha: false });
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // intent: 'print' は「出力用の描画」。既定の表示用描画はrequestAnimationFrameで
+      // 処理を分割するため、ブラウザのタブを裏に回すと描画が止まってしまう。
+      // 出力用にすればタブが非表示でも圧縮を完走できる。
+      await page.render({ canvasContext: ctx, viewport, intent: 'print' }).promise;
+
+      // 文字が描かれているかの検査（指定されたページのみ。canvasを破棄する前に行う）
+      const glyphCheck = settings.checkGlyphs
+        ? await detectMissingGlyphs(page, ctx, canvas, viewport)
+        : null;
+
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('JPEG変換に失敗しました'))), 'image/jpeg', settings.quality);
+      });
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const result = { bytes, width: canvas.width, height: canvas.height, glyphCheck };
+      canvas.width = 0;
+      canvas.height = 0;
+      return result;
+    }
+
+    async function rasterizePdfToJpegs(file, settings, opts = {}) {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await openPdfJsDocument(arrayBuffer);
+      const total = pdf.numPages;
+      const pages = [];
+
+      for (let i = 1; i <= total; i++) {
+        if (opts.isCancelled && opts.isCancelled()) {
+          return pages;
+        }
+        if (opts.onProgress) opts.onProgress(i - 1, total);
+
+        const page = await rasterizeSinglePageToJpeg(pdf, i, settings);
+        pages.push(page);
+
+        if (opts.onPageDone) opts.onPageDone(i - 1);
+        if (opts.onProgress) opts.onProgress(i, total);
+      }
+
+      return pages;
+    }
+
+    function isImageFile(file) {
+      return file.type === 'image/jpeg' || file.type === 'image/jpg';
+    }
+
+    // JPG画像1枚を指定の画質・解像度でJPEGに再変換する
+    async function rasterizeImageFileToJpeg(file, settings) {
+      // スマホ撮影のJPEGはEXIFの回転情報を持つことがあるため、
+      // 見た目通りの向きになるよう明示的に反映させる
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      const width = Math.max(1, Math.round(bitmap.width * settings.scale));
+      const height = Math.max(1, Math.round(bitmap.height * settings.scale));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d', { alpha: false });
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(bitmap, 0, 0, width, height);
+      if (bitmap.close) bitmap.close();
+
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('JPEG変換に失敗しました'))), 'image/jpeg', settings.quality);
+      });
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const result = { bytes, width, height };
+      canvas.width = 0;
+      canvas.height = 0;
+      return result;
+    }
+
+    // 入力がPDFでもJPG画像でも同じ形式（1件以上のJPEGページ群）で返す
+    async function rasterizeSourceToJpegs(file, settings, opts = {}) {
+      if (isImageFile(file)) {
+        if (opts.onProgress) opts.onProgress(0, 1);
+        const page = await rasterizeImageFileToJpeg(file, settings);
+        if (opts.onProgress) opts.onProgress(1, 1);
+        return [page];
+      }
+      return rasterizePdfToJpegs(file, settings, opts);
+    }
+
+    // ============================
+    // PDF処理ロジック
+    // ============================
+
+    async function executeProcess() {
+      if (selectedFiles.length === 0) return alert('ファイルを選択してください');
+
+      showLoading(true);
+      try {
+        let result = {};
+
+        if (currentMode === 'merge') {
+          if (selectedFiles.length < 2) throw new Error("結合するには2つ以上のファイルが必要です。");
+          result = await processMerge();
+        } else if (currentMode === 'split') {
+          result = await processSplit();
+        } else if (currentMode === 'delete') {
+          result = await processDelete();
+        } else if (currentMode === 'compress') {
+          // 推定完了を待たず、その時点のスライダー設定で本番圧縮（案X）
+          result = await processCompress();
+        }
+
+        // 圧縮結果に文字が写っていない疑いがあれば、ダウンロード前に確認する
+        if (result.glyphWarning) {
+          showLoading(false);
+          const proceed = confirm(result.glyphWarning + '\n\nこのままダウンロードしますか？');
+          if (!proceed) return;
+        }
+
+        downloadBlob(result.blob, result.filename);
+
+      } catch (e) {
+        alert("エラーが発生しました:\n" + e.message);
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    async function processCompress() {
+      const file = selectedFiles[0];
+      // 1ページ目だけ、文字が画像に写っているかを確認する（PDFのみ）
+      const settings = Object.assign(getCompressSettings(), { checkGlyphs: !isImageFile(file) });
+
+      const pages = await rasterizeSourceToJpegs(file, settings, {
+        onProgress: (done, total) => {
+          showLoading(true, `圧縮中... ${done}/${total} ページ`);
+        },
+        // 2ページ目以降は検査しない（処理時間を増やさないため）
+        onPageDone: (index) => { if (index === 0) settings.checkGlyphs = false; }
+      });
+
+      if (pages.length === 0) throw new Error('ページを処理できませんでした。');
+
+      const firstCheck = pages[0].glyphCheck;
+      let glyphWarning = null;
+      if (firstCheck && firstCheck.suspicious) {
+        glyphWarning = GLYPH_WARNING_MESSAGE;
+      } else if (firstCheck && firstCheck.checked === false && !isImageFile(file)
+                 && !(await probeCmapAvailability())) {
+        glyphWarning = CMAP_WARNING_MESSAGE;
+      }
+      if (glyphWarning) showGlyphWarning(glyphWarning);
+
+      showLoading(true, 'PDFを組み立て中...');
+      const outPdf = await PDFDocument.create();
+      for (const page of pages) {
+        const jpg = await outPdf.embedJpg(page.bytes);
+        const pdfPage = outPdf.addPage([page.width, page.height]);
+        pdfPage.drawImage(jpg, {
+          x: 0, y: 0,
+          width: page.width, height: page.height
+        });
+      }
+
+      const pdfBytes = await outPdf.save();
+      return {
+        blob: new Blob([pdfBytes], { type: 'application/pdf' }),
+        filename: `${getBaseName(file.name)}_compressed.pdf`,
+        glyphWarning
+      };
+    }
+
+    // ============================
+    // 暗号化PDF（権限制限つきPDF等）の復号
+    // ============================
+    // pdf-lib自体は暗号化PDFのページ内容を復号する機能を持たないため
+    // （ignoreEncryptionは読み込みブロックを回避するだけで、ページの中身は
+    // そのまま暗号化された状態＝白紙同然になる）、標準セキュリティハンドラの
+    // RC4(40/128bit)・AES-128(AESV2)を、開封パスワードなし（所有者パスワード
+    // のみで制限をかけたPDF）というよくあるケースに限り自前で復号する。
+    // 開封パスワードが必要なPDFや、AES-256(R5/R6)など未対応の方式の場合は
+    // 復号せずfalseを返し、呼び出し側は画像化フォールバックに切り替える。
+
+    const PDF_PASSWORD_PAD = new Uint8Array([
+      0x28,0xBF,0x4E,0x5E,0x4E,0x75,0x8A,0x41,0x64,0x00,0x4E,0x56,0xFF,0xFA,0x01,0x08,
+      0x2E,0x2E,0x00,0xB6,0xD0,0x68,0x3E,0x80,0x2F,0x0C,0xA9,0xFE,0x64,0x53,0x69,0x7A
+    ]);
+
+    function md5(input) {
+      const K = [
+        0xd76aa478,0xe8c7b756,0x242070db,0xc1bdceee,0xf57c0faf,0x4787c62a,0xa8304613,0xfd469501,
+        0x698098d8,0x8b44f7af,0xffff5bb1,0x895cd7be,0x6b901122,0xfd987193,0xa679438e,0x49b40821,
+        0xf61e2562,0xc040b340,0x265e5a51,0xe9b6c7aa,0xd62f105d,0x02441453,0xd8a1e681,0xe7d3fbc8,
+        0x21e1cde6,0xc33707d6,0xf4d50d87,0x455a14ed,0xa9e3e905,0xfcefa3f8,0x676f02d9,0x8d2a4c8a,
+        0xfffa3942,0x8771f681,0x6d9d6122,0xfde5380c,0xa4beea44,0x4bdecfa9,0xf6bb4b60,0xbebfbc70,
+        0x289b7ec6,0xeaa127fa,0xd4ef3085,0x04881d05,0xd9d4d039,0xe6db99e5,0x1fa27cf8,0xc4ac5665,
+        0xf4292244,0x432aff97,0xab9423a7,0xfc93a039,0x655b59c3,0x8f0ccc92,0xffeff47d,0x85845dd1,
+        0x6fa87e4f,0xfe2ce6e0,0xa3014314,0x4e0811a1,0xf7537e82,0xbd3af235,0x2ad7d2bb,0xeb86d391
+      ];
+      const S = [
+        7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,
+        5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
+        4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,
+        6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21
+      ];
+      const rotl = (x, c) => (x << c) | (x >>> (32 - c));
+
+      const msgLen = input.length;
+      const totalLen = (((msgLen + 8) >> 6) + 1) * 64;
+      const buf = new Uint8Array(totalLen);
+      buf.set(input);
+      buf[msgLen] = 0x80;
+      const dv = new DataView(buf.buffer);
+      dv.setUint32(totalLen - 8, (msgLen * 8) >>> 0, true);
+      dv.setUint32(totalLen - 4, Math.floor(msgLen / 0x20000000), true);
+
+      let a0 = 0x67452301 | 0, b0 = 0xefcdab89 | 0, c0 = 0x98badcfe | 0, d0 = 0x10325476 | 0;
+
+      for (let chunkStart = 0; chunkStart < totalLen; chunkStart += 64) {
+        const M = new Int32Array(16);
+        for (let j = 0; j < 16; j++) M[j] = dv.getInt32(chunkStart + j * 4, true);
+
+        let A = a0, B = b0, C = c0, D = d0;
+        for (let i = 0; i < 64; i++) {
+          let F, g;
+          if (i < 16) { F = (B & C) | (~B & D); g = i; }
+          else if (i < 32) { F = (D & B) | (~D & C); g = (5 * i + 1) % 16; }
+          else if (i < 48) { F = B ^ C ^ D; g = (3 * i + 5) % 16; }
+          else { F = C ^ (B | ~D); g = (7 * i) % 16; }
+          F = (F + A + K[i] + M[g]) | 0;
+          A = D; D = C; C = B;
+          B = (B + rotl(F, S[i])) | 0;
+        }
+        a0 = (a0 + A) | 0; b0 = (b0 + B) | 0; c0 = (c0 + C) | 0; d0 = (d0 + D) | 0;
+      }
+
+      const out = new Uint8Array(16);
+      const outDv = new DataView(out.buffer);
+      outDv.setInt32(0, a0, true); outDv.setInt32(4, b0, true);
+      outDv.setInt32(8, c0, true); outDv.setInt32(12, d0, true);
+      return out;
+    }
+
+    function rc4(key, data) {
+      const S = new Uint8Array(256);
+      for (let i = 0; i < 256; i++) S[i] = i;
+      let j = 0;
+      for (let i = 0; i < 256; i++) {
+        j = (j + S[i] + key[i % key.length]) & 0xFF;
+        const t = S[i]; S[i] = S[j]; S[j] = t;
+      }
+      const out = new Uint8Array(data.length);
+      let i = 0; j = 0;
+      for (let k = 0; k < data.length; k++) {
+        i = (i + 1) & 0xFF;
+        j = (j + S[i]) & 0xFF;
+        const t = S[i]; S[i] = S[j]; S[j] = t;
+        out[k] = data[k] ^ S[(S[i] + S[j]) & 0xFF];
+      }
+      return out;
+    }
+
+    async function aesCbcDecryptPkcs7(keyBytes, ivAndData) {
+      if (ivAndData.length <= 16) return new Uint8Array(0);
+      const iv = ivAndData.slice(0, 16);
+      const ciphertext = ivAndData.slice(16);
+      const cryptoKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
+      const plainBuf = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, cryptoKey, ciphertext);
+      return new Uint8Array(plainBuf);
+    }
+
+    function concatBytes(...arrs) {
+      const total = arrs.reduce((s, a) => s + a.length, 0);
+      const out = new Uint8Array(total);
+      let off = 0;
+      for (const a of arrs) { out.set(a, off); off += a.length; }
+      return out;
+    }
+
+    function bytesEqual(a, b) {
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+      return true;
+    }
+
+    function int32LEBytes(n) {
+      const buf = new ArrayBuffer(4);
+      new DataView(buf).setInt32(0, n, true);
+      return new Uint8Array(buf);
+    }
+
+    function numOr(pdfNum, fallback) {
+      return pdfNum && typeof pdfNum.asNumber === 'function' ? pdfNum.asNumber() : fallback;
+    }
+
+    // ファイル暗号化キー（PDF32000 Algorithm 2、ユーザーパスワードは空を仮定）
+    function computePdfFileKey({ O, P, R, lengthBits, encryptMetadata }, id0Bytes) {
+      let input = concatBytes(PDF_PASSWORD_PAD, O.slice(0, 32), int32LEBytes(P), id0Bytes);
+      if (R >= 4 && !encryptMetadata) {
+        input = concatBytes(input, new Uint8Array([0xFF, 0xFF, 0xFF, 0xFF]));
+      }
+      const keyLenBytes = Math.max(5, Math.floor(lengthBits / 8));
+      let hash = md5(input);
+      if (R >= 3) {
+        for (let i = 0; i < 50; i++) hash = md5(hash.slice(0, keyLenBytes));
+      }
+      return hash.slice(0, keyLenBytes);
+    }
+
+    // オブジェクト単位の鍵（PDF32000 Algorithm 1）
+    function computePdfObjectKey(fileKey, objNum, genNum, isAES) {
+      const extra = isAES ? new Uint8Array([0x73, 0x41, 0x6C, 0x54]) : new Uint8Array(0); // "sAlT"
+      const objBytes = new Uint8Array([
+        objNum & 0xFF, (objNum >> 8) & 0xFF, (objNum >> 16) & 0xFF,
+        genNum & 0xFF, (genNum >> 8) & 0xFF
+      ]);
+      const hash = md5(concatBytes(fileKey, objBytes, extra));
+      return hash.slice(0, Math.min(fileKey.length + 5, 16));
+    }
+
+    // ユーザーパスワードが空である前提の鍵が正しいか、/U の値と突き合わせて検証する
+    function verifyEmptyUserPassword(fileKey, R, id0Bytes, storedU) {
+      if (!storedU) return false;
+      if (R === 2) {
+        return bytesEqual(rc4(fileKey, PDF_PASSWORD_PAD), storedU.slice(0, 32));
+      }
+      let enc = rc4(fileKey, md5(concatBytes(PDF_PASSWORD_PAD, id0Bytes)));
+      for (let i = 1; i <= 19; i++) {
+        const roundKey = fileKey.map(b => b ^ i);
+        enc = rc4(roundKey, enc);
+      }
+      return bytesEqual(enc, storedU.slice(0, 16));
+    }
+
+    // 暗号化PDFを解析し、対応可能な方式であれば全ストリームをその場で復号する。
+    // 成功したらtrue（以降はcopyPagesで通常通り扱える）、
+    // 未対応の方式・要パスワード等でできなければfalseを返す。
+    async function decryptPdfDocumentInPlace(pdfDoc) {
+      try {
+        const context = pdfDoc.context;
+        const encryptRef = context.trailerInfo.Encrypt;
+        if (!encryptRef) return false;
+        const encDict = context.lookup(encryptRef);
+        if (!encDict || typeof encDict.lookup !== 'function') return false;
+
+        const filterVal = encDict.lookup(PDFLib.PDFName.of('Filter'));
+        if (filterVal && filterVal.asString && filterVal.asString() !== '/Standard') return false;
+
+        const R = numOr(encDict.lookup(PDFLib.PDFName.of('R')), 2);
+        if (R < 2 || R > 4) return false; // AES-256 (R5/R6) は未対応
+
+        const V = numOr(encDict.lookup(PDFLib.PDFName.of('V')), 1);
+        const P = numOr(encDict.lookup(PDFLib.PDFName.of('P')), 0);
+        const lengthBits = numOr(encDict.lookup(PDFLib.PDFName.of('Length')), 40);
+        const emVal = encDict.lookup(PDFLib.PDFName.of('EncryptMetadata'));
+        const encryptMetadata = emVal && typeof emVal.asBoolean === 'function' ? emVal.asBoolean() : true;
+
+        const oVal = encDict.lookup(PDFLib.PDFName.of('O'));
+        const uVal = encDict.lookup(PDFLib.PDFName.of('U'));
+        if (!oVal || !uVal || !oVal.asBytes || !uVal.asBytes) return false;
+        const O = oVal.asBytes();
+        const storedU = uVal.asBytes();
+
+        let useAES = false;
+        if (V >= 4) {
+          const cf = encDict.lookup(PDFLib.PDFName.of('CF'));
+          const stmF = encDict.lookup(PDFLib.PDFName.of('StmF'));
+          if (cf && stmF && stmF.asString && typeof cf.lookup === 'function') {
+            const stmFName = stmF.asString().replace(/^\//, '');
+            if (stmFName && stmFName !== 'Identity') {
+              const cfDict = cf.lookup(PDFLib.PDFName.of(stmFName));
+              if (cfDict && typeof cfDict.lookup === 'function') {
+                const cfm = cfDict.lookup(PDFLib.PDFName.of('CFM'));
+                const cfmName = cfm && cfm.asString ? cfm.asString() : '';
+                if (cfmName === '/AESV2') useAES = true;
+                else if (cfmName === '/AESV3') return false; // AES-256は未対応
+              }
+            }
+          }
+        }
+
+        let id0Bytes = new Uint8Array(0);
+        const idRaw = context.trailerInfo.ID;
+        const idVal = idRaw ? context.lookup(idRaw) : null;
+        if (idVal && typeof idVal.get === 'function') {
+          let first = idVal.get(0);
+          if (first && !first.asBytes) first = context.lookup(first);
+          if (first && typeof first.asBytes === 'function') id0Bytes = first.asBytes();
+        }
+
+        const fileKey = computePdfFileKey({ O, P, R, lengthBits, encryptMetadata }, id0Bytes);
+        if (!verifyEmptyUserPassword(fileKey, R, id0Bytes, storedU)) {
+          // 開封パスワードが設定されている（空パスワードの前提が成り立たない）
+          return false;
+        }
+
+        const encryptRefNum = encryptRef.objectNumber;
+        for (const [ref, obj] of context.enumerateIndirectObjects()) {
+          if (ref.objectNumber === encryptRefNum) continue;
+          if (!(obj instanceof PDFLib.PDFRawStream)) continue;
+          try {
+            const typeVal = obj.dict && typeof obj.dict.lookup === 'function'
+              ? obj.dict.lookup(PDFLib.PDFName.of('Type')) : null;
+            if (typeVal && typeVal.asString && typeVal.asString() === '/XRef') continue; // XRefストリームは対象外
+
+            const objKey = computePdfObjectKey(fileKey, ref.objectNumber, ref.generationNumber, useAES);
+            obj.contents = useAES
+              ? await aesCbcDecryptPkcs7(objKey, obj.contents)
+              : rc4(objKey, obj.contents);
+          } catch (innerErr) {
+            console.warn('オブジェクト(' + ref.objectNumber + ')の復号に失敗しました', innerErr);
+          }
+        }
+        return true;
+      } catch (e) {
+        console.warn('PDF復号に失敗したため画像化にフォールバックします', e);
+        return false;
+      }
+    }
+
+    // 暗号化PDF（復号できなかった場合）を画像化する際の設定
+    const ENCRYPTED_PDF_RASTER_SETTINGS = { quality: 0.92, scale: 2.0 };
+
+    // 指定したページ番号(1始まり)群を新しいPDFDocumentに追加する。
+    // 暗号化されていなければベクター情報を保ったままcopyPagesし、
+    // 暗号化されている場合はpdf.jsで1ページずつ画像化して貼り付ける。
+    async function appendPagesTo(destPdf, srcInfo, pageNumbers1based, opts = {}) {
+      if (!srcInfo.encrypted) {
+        const indices = pageNumbers1based.map(n => n - 1);
+        const copiedPages = await destPdf.copyPages(srcInfo.srcPdf, indices);
+        copiedPages.forEach(page => destPdf.addPage(page));
+        return;
+      }
+
+      if (!srcInfo.pdfjsDoc) {
+        srcInfo.pdfjsDoc = await openPdfJsDocument(srcInfo.arrayBuffer);
+      }
+      for (let i = 0; i < pageNumbers1based.length; i++) {
+        if (opts.onProgress) opts.onProgress(i, pageNumbers1based.length);
+        const page = await rasterizeSinglePageToJpeg(srcInfo.pdfjsDoc, pageNumbers1based[i], ENCRYPTED_PDF_RASTER_SETTINGS);
+        const jpg = await destPdf.embedJpg(page.bytes);
+        const pdfPage = destPdf.addPage([page.width, page.height]);
+        pdfPage.drawImage(jpg, { x: 0, y: 0, width: page.width, height: page.height });
+      }
+    }
+
+    // ファイルを読み込み、暗号化されているか判定して情報をまとめる。
+    // 対応可能な暗号化（開封パスワードなしのRC4/AES-128）であればその場で
+    // 復号し、以降は通常のPDFと同じくベクター情報を保ったまま処理できるようにする。
+    async function loadSourcePdfInfo(file) {
+      const arrayBuffer = await file.arrayBuffer();
+      const srcPdf = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+      let encrypted = srcPdf.isEncrypted === true;
+      if (encrypted) {
+        const decrypted = await decryptPdfDocumentInPlace(srcPdf);
+        if (decrypted) encrypted = false;
+      }
+      return {
+        arrayBuffer,
+        srcPdf,
+        totalPages: srcPdf.getPageCount(),
+        encrypted,
+        pdfjsDoc: null
+      };
+    }
+
+    // 結合処理
+    async function processMerge() {
+      const mergedPdf = await PDFDocument.create();
+      const baseName = getBaseName(selectedFiles[0].name);
+
+      for (const file of selectedFiles) {
+        if (file.type === 'application/pdf') {
+          const srcInfo = await loadSourcePdfInfo(file);
+          const pageNumbers = Array.from({ length: srcInfo.totalPages }, (_, i) => i + 1);
+          await appendPagesTo(mergedPdf, srcInfo, pageNumbers, {
+            onProgress: (done, total) => {
+              showLoading(true, `結合中... ${file.name} (${done}/${total})`);
+            }
+          });
+        }
+        else if (file.type === 'image/jpeg' || file.type === 'image/jpg') {
+          const arrayBuffer = await file.arrayBuffer();
+          const jpgImage = await mergedPdf.embedJpg(arrayBuffer);
+          const jpgDims = jpgImage.scale(1);
+          const page = mergedPdf.addPage([jpgDims.width, jpgDims.height]);
+          page.drawImage(jpgImage, {
+            x: 0, y: 0,
+            width: jpgDims.width, height: jpgDims.height,
+          });
+        }
+      }
+      const pdfBytes = await mergedPdf.save();
+      return {
+        blob: new Blob([pdfBytes], { type: "application/pdf" }),
+        filename: `${baseName}_merged.pdf`
+      };
+    }
+
+    // 分割処理
+    async function processSplit() {
+      const isSplitAll = document.getElementById('split-all-check').checked;
+      const file = selectedFiles[0];
+      const baseName = getBaseName(file.name);
+      const srcInfo = await loadSourcePdfInfo(file);
+      const totalPages = srcInfo.totalPages;
+
+      if (isSplitAll) {
+        const zip = new JSZip();
+        for (let i = 0; i < totalPages; i++) {
+          showLoading(true, `分割中... ${i + 1}/${totalPages} ページ`);
+          const newPdf = await PDFDocument.create();
+          await appendPagesTo(newPdf, srcInfo, [i + 1]);
+          const pdfBytes = await newPdf.save();
+          zip.file(`${baseName}_p${i + 1}.pdf`, pdfBytes);
+        }
+        const zipBlob = await zip.generateAsync({type:"blob"});
+        return {
+          blob: zipBlob,
+          filename: `${baseName}_pages.zip`
+        };
+
+      } else {
+        const rangeStr = document.getElementById('split-range').value;
+        if (!rangeStr) throw new Error("ページ範囲を入力してください。");
+
+        const pagesToKeep0based = parseRange(rangeStr, totalPages);
+        if (pagesToKeep0based.length === 0) throw new Error("有効なページ範囲ではありません。");
+
+        const newPdf = await PDFDocument.create();
+        await appendPagesTo(newPdf, srcInfo, pagesToKeep0based.map(i => i + 1), {
+          onProgress: (done, total) => showLoading(true, `分割中... ${done}/${total} ページ`)
+        });
+
+        const pdfBytes = await newPdf.save();
+        return {
+          blob: new Blob([pdfBytes], { type: "application/pdf" }),
+          filename: `${baseName}_extracted.pdf`
+        };
+      }
+    }
+
+    // 削除処理
+    async function processDelete() {
+      const rangeStr = document.getElementById('delete-range').value;
+      if (!rangeStr) throw new Error("削除するページ番号を入力してください。");
+
+      const file = selectedFiles[0];
+      const baseName = getBaseName(file.name);
+      const srcInfo = await loadSourcePdfInfo(file);
+      const totalPages = srcInfo.totalPages;
+
+      const pagesToDelete = parseRange(rangeStr, totalPages);
+      const pagesToKeep0based = [];
+      for (let i = 0; i < totalPages; i++) {
+        if (!pagesToDelete.includes(i)) pagesToKeep0based.push(i);
+      }
+
+      if (pagesToKeep0based.length === 0) throw new Error("すべてのページが削除されてしまいます。");
+
+      const newPdf = await PDFDocument.create();
+      await appendPagesTo(newPdf, srcInfo, pagesToKeep0based.map(i => i + 1), {
+        onProgress: (done, total) => showLoading(true, `処理中... ${done}/${total} ページ`)
+      });
+
+      const pdfBytes = await newPdf.save();
+      return {
+        blob: new Blob([pdfBytes], { type: "application/pdf" }),
+        filename: `${baseName}_cleaned.pdf`
+      };
+    }
+
+    function downloadBlob(blob, fileName) {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function parseRange(input, maxPages) {
+      const pages = new Set();
+      const parts = input.split(/[,、]/);
+      parts.forEach(part => {
+        const range = part.trim().split('-');
+        if (range.length === 1) {
+          const p = parseInt(range[0]);
+          if (!isNaN(p) && p >= 1 && p <= maxPages) pages.add(p - 1);
+        } else if (range.length === 2) {
+          const start = parseInt(range[0]);
+          const end = parseInt(range[1]);
+          if (!isNaN(start) && !isNaN(end)) {
+            const s = Math.min(start, end);
+            const e = Math.max(start, end);
+            for (let i = s; i <= e; i++) {
+              if (i >= 1 && i <= maxPages) pages.add(i - 1);
+            }
+          }
+        }
+      });
+      return Array.from(pages).sort((a, b) => a - b);
+    }
+  </script>
+</body>
+</html>
